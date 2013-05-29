@@ -1,0 +1,58 @@
+/* Copyright (c) 2010 HomeAway, Inc.
+ * All rights reserved.  http://homeaway.github.io/calendar-widget/
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+// Background
+$activeBackgroundLight:      #378fD0;
+$activeBackgroundDark:       darken(#378fd0, 15%);
+$background:                 #FFFFFF !default;
+$focusBackgroundDark:        #F5F8FB;
+$defaultBackgroundDark:      #F5F8FB;
+$headerBackgroundDark:       #F5F8FB;
+$headerBackground:           #F5F8FB;
+$headerBackgroundLight:      #f0f5f8;
+$defaultBackgroundLight:     #f0f5f8;
+$focusBackgroundLight:       #f0f5f8;
+$highlightBackground:        #FFEF8F;
+$errorBackground:            lighten(#ED605A, 20%);
+
+// Border
+$activeBorder:               #378fD0;
+$border:                     #CFE1EF;
+$headerBorder:               #CFE1EF;
+$focusBorder:                #2A6EBB !default;
+$highlightBorder:            #FAD42E;
+$defaultBorder:              #91CFEE !default;
+$errorBorder:                #ED605A;
+
+// Text
+$activeText:                 #FFFFFF;
+$widgetText:                 #8B8B8B;
+$THText:                     #838383;
+$errorText:                  #ED605A;
+$focusText:                  #2A6EBB;
+$focusHoverText:             darken(#2A6EBB, 15%);
+$defaultText:                #2A6EBB;
+$defaultTextVisited:         darken(#2A6EBB, 15%);
+$highlightText:              #333333;
+$headerText:                 #333333;
+
+// Event colors
+$reserveColor:               #FB1A10;
+$holdColor:                  #ffc000;
+$unavailableColor:           #CCCCCC;
+$inquiryColor:               #2A6EBB;
+
+$THFontWeight:               normal;
+$loadingImagePath:           "img/ajax-loader-inline.gif";
