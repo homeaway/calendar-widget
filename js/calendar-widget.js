@@ -1,5 +1,5 @@
-/*! Copyright (c) 2010 HomeAway, Inc.
- * All rights reserved.  http://homeaway.github.io/calendar-widget/
+/* Copyright (c) 2010 HomeAway, Inc.
+* All rights reserved.  http://homeaway.github.io/calendar-widget/
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,8 +11,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+ * limitations under the License. */
 (function () {
     var $        = window.jQuery;
     var Backbone = window.Backbone;
@@ -232,11 +231,13 @@
              * @return {Array} dates An array of calendar event objects. */
             resolveDates: function(calendarData, calendarEvents) {
                 var dates = [];
-                var key, calendarEvent;
+                var key, calendarEvent, i, j;
 
                 // Resolves a calendar date and a calendar event to a single object
                 function resolveDateAndEvent(calendarDate, calendarEvent) {
                     return  {
+                        "startDate": calendarEvent ? calendarEvent.startDate: undefined,
+                        "endDate": calendarEvent ? calendarEvent.endDate: undefined,
                         "date": calendarDate.date,
                         "reservationId": calendarDate.reservationId,
                         /* If the user has passed in a duration use that one, else check if the day falls into a
@@ -262,7 +263,7 @@
                         var inquiryStartDate = this.makeDate(this.reverseFormatDate(startDate));
                         var reservationId    = calendarData[key].reservationId
                         var currentDate      = inquiryStartDate;
-                        var numberOfDaysBetween, j;
+                        var numberOfDaysBetween;
                         
                         // Append the inquiry start date to the calendar as a pm inquiry day
                         dates.push(resolveDateAndEvent({
@@ -272,7 +273,7 @@
                         }, calendarEvent));
 
                         // Compute the number of days between the inquiry start and end date
-                        numberOfDaysBetween = (inquiryEndDate - inquiryStartDate)/(1000 * 60 * 60 * 24);
+                        numberOfDaysBetween = Math.round(Math.abs((inquiryEndDate - inquiryStartDate)/(1000 * 60 * 60 * 24)));
                         currentDate = inquiryStartDate;
 
                         // For each day between the inquiry stay dates add a full inquiry day to the dates
@@ -311,6 +312,103 @@
                     calendarEvents[key]));
                 }
 
+                /* Once all of the dates have been created, loop through the dates and fix any overlapping conflicts that there may be. */
+                for(i = dates.length - 1; i >= 0; i--) {
+
+                    for(j = dates.length - 1; j >= 0; j--) {
+
+                        // if there are two events that fall on the same day
+                        if(i !== j && dates[i].date === dates[j].date && dates[i].startDate && dates[i].endDate) {
+
+                            // if the two events are both full day events
+                            if(dates[i].duration === "full" && dates[j].duration === "full") {
+
+                                /* if the start date of the first event is greater then the second, drop the second date
+                                        jjjjiiiijjjjj */
+                                if(this.reverseFormatDate(dates[i].startDate) > this.reverseFormatDate(dates[j].startDate)) {
+                                    dates.splice(j, 1);
+                                }
+                                /* if the start date of the first event is less then the second, drop the first date
+                                        iiiijjjjj */
+                                else if(this.reverseFormatDate(dates[i].startDate) < this.reverseFormatDate(dates[j].startDate)) {
+                                    dates.splice(i, 1);
+                                }
+                                /* else the the start date of the first event is equal to the start date of the second event.
+                                    xxxx (x represents i and j) */
+                                else {
+                                    /* if the the end date of the first event is greater then the end date of the second event 
+                                        xxxxjjjjiiii */
+                                    if(this.reverseFormatDate(dates[i].endDate) > this.reverseFormatDate(dates[j].endDate)) {
+                                        dates.splice(i, 1);
+                                    }
+                                    /* else the the end date of the first event is less then the end date of the second event 
+                                        xxxxiiiijjjj */
+                                    else if(this.reverseFormatDate(dates[i].endDate) < this.reverseFormatDate(dates[j].endDate)) {
+                                        dates.splice(j, 1);
+                                    }
+                                    /* else the the end date of the first event is equal to the end date of the second event 
+                                        xxxxxxxx
+                                     in this instance, the event that is not a reserve event is removed. 
+                                     **NOTE: this assumes that there will only ever be one reserve event per day. */
+                                    else {
+                                        (dates[i].status === 'reserve') ? dates.splice(j, 1): dates.splice(i, 1);
+                                    }
+                                }
+                                break;
+                            }
+                            /* else the first event is an end day and the second event is a full day */
+                            else if(dates[i].duration === "pm" && dates[j].duration === "full") {
+                                dates[j].duration = "am";
+                                break;
+                            }
+                            /* else the first event is a beginning day and the second event is a full day */
+                            else if(dates[i].duration === "am" && dates[j].duration === "full") {
+                                dates[j].duration = "pm";
+                                break;
+                            }
+                            /* else the first event is a beginning day and the second event is a beginning day */
+                            else if(dates[i].duration === "am" && dates[j].duration === "am") {
+                                /* if the the end date of the first event is greater then the end date of the second event 
+                                    xxxxjjjjiiii */
+                                if(this.reverseFormatDate(dates[i].endDate) > this.reverseFormatDate(dates[j].endDate)) {
+                                    dates.splice(i, 1);
+                                }
+                                /* else the the end date of the first event is less then the end date of the second event 
+                                    xxxxiiiijjjj */
+                                else if(this.reverseFormatDate(dates[i].endDate) < this.reverseFormatDate(dates[j].endDate)) {
+                                    dates.splice(j, 1);
+                                }
+                                /* else the the end date of the first event is equal to the end date of the second event 
+                                    xxxxxxxx
+                                 in this instance, the event that is not a reserve event is removed. 
+                                 **NOTE: this assumes that there will only ever be one reserve event per day. */
+                                else {
+                                    (dates[i].status === 'reserve') ? dates.splice(j, 1): dates.splice(i, 1);
+                                }
+                                break;
+                            }
+                            else if(dates[i].duration === "pm" && dates[j].duration === "pm") {
+                                /* if the start date of the first event is greater then the second, drop the second date
+                                        jjjjiiiijjjjj */
+                                if(this.reverseFormatDate(dates[i].startDate) > this.reverseFormatDate(dates[j].startDate)) {
+                                    dates.splice(j, 1);
+                                }
+                                /* else the start date of the first event is less then the second, drop the first date
+                                        iiiijjjjj */
+                                else if(this.reverseFormatDate(dates[i].startDate) < this.reverseFormatDate(dates[j].startDate)) {
+                                    dates.splice(i, 1);
+                                }
+                                /* else the the end date of the first event is equal to the end date of the second event 
+                                    xxxxxxxx
+                                 in this instance, the event that is not a reserve event is removed. 
+                                 **NOTE: this assumes that there will only ever be one reserve event per day. */
+                                else {
+                                    (dates[i].status === 'reserve') ? dates.splice(j, 1): dates.splice(i, 1);
+                                }
+                            }
+                        }
+                    }
+                }
                 return dates;
             },
 
@@ -494,13 +592,13 @@
                         // The selected date for the first calendar.
                         var selectedStartDate = that.model.get('startCalendarDate');
                         // The selected date for the second calendar.
-                        var selectedEndDate = that.model.get('endCalendarDate');
+                        var selectedEndDate   = that.model.get('endCalendarDate');
                         // The currently hovered end date of the second calendar.
-                        var hoveredEndDate = that.model.hoveredEndDate;
+                        var hoveredEndDate    = that.model.hoveredEndDate;
                         // The currently hovered end date of the first calendar.
-                        var hoveredStartDate = that.model.hoveredStartDate;
-                        var style = [];
-                        var formattedDate, i;
+                        var hoveredStartDate  = that.model.hoveredStartDate;
+                        var style             = [];
+                        var formattedDate, i, cachedStyle;
 
                         // Convert the date to the format returned by the backend YYYY-MM-DD
                         date = that.model.formatDate(date);
@@ -513,6 +611,15 @@
                             if(calendar[i].date === date) {
                                 style.push(' ' + calendar[i].duration + '-' + calendar[i].status.toLowerCase() + ' X' + calendar[i].reservationId + 'X');
                             }
+                        }
+                        /* Since dates are manipulated in the resolveDates function, events can sometimes be calculated as
+                            pm-status XidX am-status XidX which will create issues with the hovering and highlighting of events
+                            because am is expected to be first. Therefore, check to see if the calculated style is out of order.
+                            If they are out of order, swap the am and pm style. */
+                        if(style.length === 2 && style[0].indexOf('pm-') !== -1 && style[1].indexOf('am-')) {
+                            cachedStyle = style[0];
+                            style[0] = style[1];
+                            style[1] = cachedStyle;
                         }
 
                         formattedDate = that.model.reverseFormatDate(date);
@@ -644,7 +751,7 @@
                                 var parentClass      = $(this).parent().attr('class');
                                 var parentClassParts = parentClass.split("X");
                                 // The currently hovered end date of the second calendar.
-                                var hoveredEndDate = that.model.hoveredEndDate;
+                                var hoveredEndDate   = that.model.hoveredEndDate;
                                 // The currently hovered end date of the first calendar.
                                 var hoveredStartDate = that.model.hoveredStartDate;
                                 var id, status, onClickAttributeParts, newHoveredDate;
@@ -847,7 +954,7 @@
                         // The selected date for the first calendar.
                         var selectedStartDate = that.model.get('startCalendarDate');
                         // The selected date for the second calendar.
-                        var selectedEndDate = that.model.get('endCalendarDate');
+                        var selectedEndDate   = that.model.get('endCalendarDate');
                         var dateTextParts     = dateText.split('/');
                         var date              = dateTextParts[2] + '-' + dateTextParts[0] + '-' + dateTextParts[1];
                         var startIsEndMinimum = that.model.get('startIsEndMinimum');
@@ -916,11 +1023,11 @@
                         // The selected date for the first calendar.
                         var selectedStartDate = that.model.get('startCalendarDate');
                         // The selected date for the second calendar.
-                        var selectedEndDate = that.model.get('endCalendarDate');
+                        var selectedEndDate   = that.model.get('endCalendarDate');
                         // The currently hovered end date of the second calendar.
-                        var hoveredEndDate = that.model.hoveredEndDate;
+                        var hoveredEndDate    = that.model.hoveredEndDate;
                         // The currently hovered end date of the first calendar.
-                        var hoveredStartDate = that.model.hoveredStartDate;
+                        var hoveredStartDate  = that.model.hoveredStartDate;
 
                         /* Set the hover start date and end date to undefined because the calendar is being closed and there aren't
                             any days being hovered anymore. This is necessary so that hover dates won't be painted in redraws. */
@@ -965,8 +1072,8 @@
                 // The selected date for the first calendar.
                 var selectedStartDate = this.model.get('startCalendarDate');
                 // The selected date for the second calendar.
-                var selectedEndDate = this.model.get('endCalendarDate');
-                var that = this;
+                var selectedEndDate   = this.model.get('endCalendarDate');
+                var that              = this;
 
                 this.createCalendar({
                     el: this.$el,
@@ -1036,7 +1143,7 @@
         // Extend the default attributes with the options. This will get rid of any undefined vars.
         options = $.extend(true, {}, $.fn.calendar.defaults, options);
 
-        this.model = new this.Model({
+        this.model = this.model || new this.Model({
             defaultDate: options.defaultDate,
             numberOfMonths: options.numberOfMonths,
             propertyId: options.propertyId,
@@ -1051,7 +1158,7 @@
             startIsEndMinimum: options.startIsEndMinimum,
             showButtonPanel: options.showButtonPanel
         });
-        this.view = new this.View({
+        this.view = this.view || new this.View({
             el: options.el,
             model: this.model,
             clicked: options.clicked,
@@ -1071,13 +1178,13 @@
 
     $.fn.calendar = function (option) {
         return this.each(function () {
-            var $this = $(this), 
-            data = $this.data('calendar'),
-            options = typeof option == 'object' && option
-            if(!options) options = {}
-            options.el = $this
-            if (!data) $this.data('calendar', (data = new Calendar(options)))
-            if (typeof option == 'string') data[option]()
+            var $this = $(this);
+            var data = $this.data('calendar');
+            var options = typeof option == 'object' && option;
+            if(!options) options = {};
+            options.el = $this;
+            if (!data) $this.data('calendar', (data = new Calendar(options)));
+            if (typeof option == 'string') data[option]();
         });
     };
 

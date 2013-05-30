@@ -13,4 +13,4 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  compass
+  compass (= 0.12.2)
