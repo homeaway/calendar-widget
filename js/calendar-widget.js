@@ -154,15 +154,67 @@
             initialize: function(attributes, options) {
                 // Calculate the start dates and append the inquiry dates to the calendar.
                  var defaultDate = this.get('defaultDate');
-                 var calendar    = $.extend(true, [], this.get("calendar"));
+                 var calendar    = this.getCalendar();
                  
-                _.bindAll(this, 'formatDate', 'getDefaultDates', 'copyDate', 'makeDate', 'resolveDates', 'setDataBounds', 'reverseFormatDate', 'getReservationsById');
+                _.bindAll(this, 'addReservations', 'removeReservations', 'resolveDateConflicts', 'formatDate', 'getDefaultDates', 'copyDate', 'makeDate', 'resolveDates', 'getCalendar', 'setDataBounds', 'throwError', 'reverseFormatDate', 'getReservationsById');
 
                 calendar = $.merge(calendar, this.getDefaultDates());
                 this.set('calendar', calendar);
 
                 // If the user didn't pass in a default date then set the date to the current date else create the start and end date ranges from the default date
                 !defaultDate ? this.setDataBounds(new Date()) : this.setDataBounds(this.reverseFormatDate(defaultDate));
+            },
+
+            /** adds reservations to the calendar data.
+             * @param {Object} reservations the object of reservation data, needs calendar and reservation keys with data */
+            addReservations: function(reservations) {
+                if(!reservations.calendar || !reservations.reservations) {
+                    this.throwError('addReservations() requires calendar and reservations data');
+                }
+                var calendar = this.getCalendar();
+                var newCalendarData = this.resolveDates($.extend(true, {}, reservations.calendar), $.extend(true, {}, reservations.reservations));
+                this.set('calendar', $.merge(calendar, newCalendarData));
+            },
+
+            /** helper to get the calendar array.
+             * @return {Array} array of calendar data */
+            getCalendar: function() {
+                return $.extend(true, [], this.get("calendar"));
+            },
+
+            /** helper function to throw a uniform error. 
+             * @param {String} message the error message to throw */
+            throwError: function(message) {
+                throw 'HomeAway Calendar Widget: ' + message ? message: 'There was an error' + '.'
+            },
+
+            /** removes reservations from the calendar data. 
+             * @param {String || Object} reservations a string or array of reservation ids */
+            removeReservations: function(reservations) {
+                var calendar = this.getCalendar();
+                var i, j;
+
+                if(!reservations) {
+                    this.throwError('removeReservations requires an array of reservation ids or a single reservation id as a string');
+                }
+                // if the user passes in a string, convert it to an array for ease of use
+                if(typeof reservations === 'string') {
+                    reservations = [reservations];
+                }
+
+                // check to see if there are any reservations for the passed in reservations
+                for(i = reservations.length - 1; i >= 0; i--) {
+                    reservations[i] = reservations[i].toLowerCase();
+
+                    for(j = calendar.length - 1; j >= 0; j--) {
+
+                        // if we find the reservation, remove it from the calendar data
+                        if(calendar[j].reservationId === reservations[i]) {
+                            calendar.splice(j, 1);
+                        }
+                    }                   
+                }
+                this.set('calendar', calendar);
             },
 
             /** returns a copy of a date object
@@ -236,14 +288,14 @@
                 // Resolves a calendar date and a calendar event to a single object
                 function resolveDateAndEvent(calendarDate, calendarEvent) {
                     return  {
-                        "startDate": calendarEvent ? calendarEvent.startDate: undefined,
-                        "endDate": calendarEvent ? calendarEvent.endDate: undefined,
+                        "startDate": calendarEvent ? calendarEvent.startDate: calendarDate.startDate ? calendarDate.startDate: undefined,
+                        "endDate": calendarEvent ? calendarEvent.endDate: calendarDate.endDate ? calendarDate.endDate: undefined,
                         "date": calendarDate.date,
                         "reservationId": calendarDate.reservationId,
                         /* If the user has passed in a duration use that one, else check if the day falls into a
                         checkin or checkout date, else set the duration full. */
                         "duration": (calendarDate.duration ? calendarDate.duration: undefined) || (calendarEvent.checkinDate === calendarDate.date ? 'pm': undefined) || (calendarEvent.checkoutDate === calendarDate.date ? 'am': 'full'),
-                        "status":  (calendarEvent ? (calendarEvent.status ? calendarEvent.status.toLowerCase() : ''): ''),
+                        "status":  (calendarEvent ? (calendarEvent.status ? calendarEvent.status.toLowerCase() : undefined): undefined) || (calendarDate ? (calendarDate.status ? calendarDate.status.toLowerCase() : ''): ''),
                         "guestFirstName": (calendarEvent ? calendarEvent.guestFirstName: undefined),
                         "guestLastName": (calendarEvent ? calendarEvent.guestLastName: undefined),
                         "checkinTime": (calendarEvent ? calendarEvent.checkinTime: undefined),
@@ -257,19 +309,23 @@
 
                     // If the user has specified date ranges calculate the dates between the range
                     if(calendarData[key].startDate && calendarData[key].endDate) {
-                        var endDate = calendarData[key].endDate;
-                        var startDate = calendarData[key].startDate;
+                        var endDate          = calendarData[key].endDate;
+                        var startDate        = calendarData[key].startDate;
+                        var status           = calendarData[key].status;
                         var inquiryEndDate   = this.makeDate(this.reverseFormatDate(endDate));
                         var inquiryStartDate = this.makeDate(this.reverseFormatDate(startDate));
-                        var reservationId    = calendarData[key].reservationId
+                        var reservationId    = calendarData[key].reservationId;
                         var currentDate      = inquiryStartDate;
                         var numberOfDaysBetween;
-                        
+
                         // Append the inquiry start date to the calendar as a pm inquiry day
                         dates.push(resolveDateAndEvent({
-                            'date': startDate,
-                            'duration': 'pm',
-                            'reservationId': reservationId
+                            date         :startDate,
+                            duration     :'pm',
+                            reservationId:reservationId,
+                            startDate    :startDate,
+                            endDate      :endDate,
+                            status       :status
                         }, calendarEvent));
 
                         // Compute the number of days between the inquiry start and end date
@@ -280,17 +336,23 @@
                         for(j = numberOfDaysBetween - 1; j >= 1; j--) {
                             currentDate.setDate(currentDate.getDate() + 1);
                             dates.push(resolveDateAndEvent({
-                                'date': this.formatDate(currentDate),
-                                'duration': 'full',
-                                'reservationId': reservationId
+                                date         :this.formatDate(currentDate),
+                                duration     :'full',
+                                reservationId:reservationId,
+                                startDate    :startDate,
+                                endDate      :endDate,
+                                status       :status
                             }, calendarEvent));
                         }
 
                         // Append the inquiry end date to the dates as an am inquiry day
                         dates.push(resolveDateAndEvent({
-                            'date': endDate,
-                            'duration': 'am',
-                            'reservationId': reservationId
+                            date         :endDate,
+                            duration     :'am',
+                            reservationId:reservationId,
+                            startDate    :startDate,
+                            endDate      :endDate,
+                            status       :status
                         }, calendarEvent));
                         /* Remove the calendar event associated with the day range because the checkout day is already
                         added and doesn't need to be added at the bottom. */
@@ -298,7 +360,7 @@
                     }
                     // Else just append the default calendar date
                     else {
-                        dates.push(resolveDateAndEvent($.extend(true, {'date': key}, calendarData[key]), calendarEvent));
+                        dates.push(resolveDateAndEvent($.extend(true, { date: key }, calendarData[key]), calendarEvent));
                     }
                 }
 
@@ -306,12 +368,19 @@
                 check out day since checkout days are not included in the calendar data. */
                 for(key in calendarEvents) {
                     dates.push(resolveDateAndEvent({
-                        'date': calendarEvents[key].checkoutDate,
-                        'reservationId': key
+                        date: calendarEvents[key].checkoutDate,
+                        reservationId: key
                     },
                     calendarEvents[key]));
                 }
+                return this.resolveDateConflicts(dates);
+            },
 
+            /** Resolves conflicts between dates. For example, if there are two events on the same day,
+             *  it will decide which event to keep. 
+             * @param {Array} dates An array of event objects
+             * @return {Array} an array of resolved event objects */
+            resolveDateConflicts: function(dates) {
                 /* Once all of the dates have been created, loop through the dates and fix any overlapping conflicts that there may be. */
                 for(i = dates.length - 1; i >= 0; i--) {
 
@@ -421,7 +490,7 @@
             /** Gets all reservations associated with an id.
              * @return {Array} reservations An array of reservation objects. */
             getReservationsById: function(id) {
-                return _.where($.extend(true, [], this.get("calendar")), { 'reservationId': id });
+                return _.where(this.getCalendar(), { 'reservationId': id });
             },
 
             /** Takes a date object and returns it in the form of YYYY-MM-DD
@@ -453,7 +522,9 @@
                 $.datepicker._updateDatepicker_original(inst);
                 var afterShow = this._get(inst, 'afterShow');
 
-                if (afterShow) afterShow.apply((inst.input ? inst.input[0] : null));
+                if (afterShow) {
+                    afterShow.apply((inst.input ? inst.input[0] : null));
+                }
             };
             /* This is a custom flag added to the datepicker so that in case a user recreates a datepicker on an object it
             won't exceed the callstack by continually extending the global function. */
@@ -502,6 +573,10 @@
                     that.$el.trigger('error', error);
                     that.error(error);
                 });
+
+                /* re-render the calendar when the calendar data changes. this is so that when
+                    the user adds or removes reservations the calendar will re-render. */
+                this.model.on('change:calendar', this.afterRender, this);
 
                 // If the start date has changed then fetch data!
                 this.model.on('change:startDate', function() {
@@ -639,17 +714,17 @@
                                 || selectedStartDate && hoveredStartDate
                                     && hoveredStartDate < selectedStartDate
                                     && selectedStartDate.toString() === formattedDate.toString()) {
-                                style.push(that.hoverClass);
+                                style.push(' ' + that.hoverClass);
                             }
                             // Or, if the current date is equal to the selected start date
                             else if(selectedStartDate && selectedStartDate.toString() === formattedDate.toString()
                                 // Or, if the current date is equal to the hoevered start date
                                 || hoveredStartDate && hoveredStartDate.toString() === formattedDate.toString()) {
-                                style.push(that.hoverClassStart);
+                                style.push(' ' + that.hoverClassStart);
                             }
                             // Or, if the current date is the equal to the selected end date
                             else if(selectedEndDate && selectedEndDate.toString() === formattedDate.toString()){
-                                style.push(that.hoverClassEnd);
+                                style.push(' ' + that.hoverClassEnd);
                             }
                         }
                         /* Else are we calculating the style for the second date picker calendar? */
@@ -664,17 +739,17 @@
                                     && selectedStartDate.toString() === formattedDate.toString()
                                     && selectedEndDate.toString() === selectedStartDate.toString()
                                 ) {
-                                style.push(that.hoverClass);
+                                style.push(' ' + that.hoverClass);
                             }
                             // Or, if the current date is equal to the selected start date
                             else if(selectedStartDate && selectedStartDate.toString() === formattedDate.toString()) {
-                                style.push(that.hoverClassStart);
+                                style.push(' ' + that.hoverClassStart);
                             }
                             // Or, if the current date is equal to the selected end date
                             else if(selectedEndDate && formattedDate.toString() === selectedEndDate.toString()
                                 // Or, if the current date is equal to the end hover date
                                 || hoveredEndDate && formattedDate.toString() === hoveredEndDate.toString()) {
-                                style.push(that.hoverClassEnd);
+                                style.push(' ' + that.hoverClassEnd);
                             }
                         }
 
@@ -734,7 +809,7 @@
                         /* If there is an end calendar, that means that the user is using the calendar widget as a date picker so every ui-state-default or
                             table cell should have a hover state added to it. If the user is using an inline calendar only bind events to table cells
                             that have a reservation added to them. */
-                        (isEndCalendar ? $('.ui-state-default'): $(".ui-state-default", "[class*=X]")).hover(
+                       $('.ui-state-default').hover(
 
                             // On mouse hover
                             function(e) {
@@ -748,14 +823,22 @@
                                     Note: CSS Hovers are not used here because a table cell can have two classes on it at the same time. Therefore, the actual reservation that is being 
                                     hovered must be calculated.
                                 */
-                                var parentClass      = $(this).parent().attr('class');
+                                var parent           = $(this).parent();
+                                var parentClass      = parent.attr('class');
                                 var parentClassParts = parentClass.split("X");
                                 // The currently hovered end date of the second calendar.
                                 var hoveredEndDate   = that.model.hoveredEndDate;
                                 // The currently hovered end date of the first calendar.
                                 var hoveredStartDate = that.model.hoveredStartDate;
-                                var id, status, onClickAttributeParts, newHoveredDate;
+                                //JQuery UI Datepicker 1.7.* uses onclick handlers
+                                var onclickHandler   = parent.attr('onclick');
+                                var hoverDay         = $(this).html();
+                                var id, status, onClickAttributeParts, hoverYear, hoverMonth, newHoveredDate;
 
+                                /* set the current element initially to the element being hovered so that days being hovered
+                                 without a reservation can still return the element being hovered. */
+                                that.currentElement = $(this);
+                                
                                 // If the cell contains an ID
                                 if(parentClass.indexOf('X') !== -1) {
 
@@ -823,12 +906,19 @@
                                     that.hovered.on($(this), that.model.getReservationsById(id));
                                 }
 
-                                // If the date is selected, as in there is an onclick event
-                                if($(this).parent().attr('onclick')){
+                                // If the date is selected, as in there is selectDay handler (>= jquery datepicker 1.8) or an onclick event  (<1.8)
+                                if(parent.data("handler") === "selectDay") {
+                                    hoverYear = parseInt(parent.data("year"), 10);
+                                    hoverMonth = (parseInt(parent.data("month"), 10) + 1);
+                                } else if (onclickHandler){
                                     // Parse out the day that is being hovered, set the currently hovered date, and refresh the datepicker
                                     //DP_jQuery.datepicker._selectDay('#dp1361889444024',1,2013, this);return false;
-                                    onClickAttributeParts = $(this).parent().attr('onclick').split(',');
-                                    newHoveredDate = that.model.reverseFormatDate(onClickAttributeParts[2] + '-' + (parseInt(onClickAttributeParts[1], 10) + 1) + '-' + $(this).html());
+                                    onClickAttributeParts = onclickHandler.split(',');
+                                    hoverYear = parseInt(onClickAttributeParts[2], 10);
+                                    hoverMonth = (parseInt(onClickAttributeParts[1], 10) + 1);
+                                }
+                                if (hoverYear && hoverMonth) {
+                                    newHoveredDate = that.model.reverseFormatDate(hoverYear + '-' + hoverMonth + '-' + hoverDay);
 
                                     // If the calendar is the second calendar or end calendar and if the hoveredEndDate is different then the currently selected date then set it
                                     if(isEndCalendar && (!hoveredEndDate || hoveredEndDate.toString() !== newHoveredDate.toString())) {
@@ -958,7 +1048,7 @@
                         var dateTextParts     = dateText.split('/');
                         var date              = dateTextParts[2] + '-' + dateTextParts[0] + '-' + dateTextParts[1];
                         var startIsEndMinimum = that.model.get('startIsEndMinimum');
-                        var i, newSelectedStartDate;
+                        var i, newSelectedStartDate, found;
 
                         // STOP THE DATEPICKER FROM REDRAWING ON CLICK! OMG!
                         element.inline = false;
@@ -967,6 +1057,7 @@
                         for(i = calendar.length - 1; i >= 0; i--) {
 
                             if(calendar[i].date === date && calendar[i].reservationId === currentId) {
+                                found = true;
 
                                 // Check if there is a function for that status
                                 if(that.clicked[calendar[i].status.toLowerCase()]){
@@ -981,6 +1072,12 @@
                                     el.trigger(calendar[i].status.toLowerCase(), that.currentElement, calendar[i]);
                                 }
                             }
+                        }
+
+                        /* If the date isn't found, that means that the user clicked on an available date.
+                         This assumes that a date without any reservations at all is an avaialable date. */
+                        if(!found) {
+                            that.clicked.available(that.currentElement, date);
                         }
 
                         // If the user selected a date on the end calendar
@@ -1011,7 +1108,7 @@
         
                             // If there is an end calendar passed in, then set the selected start date
                             if(endCalendar) {
-                                that.model.set('startCalendarDate', selectedStartDate);                                                                
+                                that.model.set('startCalendarDate', selectedStartDate);
                             }
                         }
                     },
@@ -1112,7 +1209,10 @@
                 }
 
                 // Once the datepicker is rendered append a loading class div and only display it if the endpoint is finished fetching data.
-                this.$el.append('<div class="calendar-loading" style="width: ' + this.$el.width() + 'px; height: ' + this.$el.height() + 'px; display:' + (this.fetching ? "block" : "none") + ';"></div>');
+                if (this.el.tagName !== "INPUT") {
+                    // Don't append a div to an INPUT, IE8 vomits if you do.
+                    this.$el.append('<div class="calendar-loading" style="width: ' + this.$el.width() + 'px; height: ' + this.$el.height() + 'px; display:' + (this.fetching ? "block" : "none") + ';"></div>');
+                }
                 return this;
             }
         });
@@ -1170,13 +1270,20 @@
             hoverClassStart: options.hoverClassStart,
             hoverClassEnd: options.hoverClassEnd
         });
+
+        this.addReservations = function(reservations) {
+            this.model.addReservations(reservations);
+        };
+        this.removeReservations = function(reservations) {
+            this.model.removeReservations(reservations);
+        };
     };
 
     /* CALENDAR PLUGIN DEFINITION
     * ======================== */
     var old = $.fn.calendar;
 
-    $.fn.calendar = function (option) {
+    $.fn.calendar = function (option, value) {
         return this.each(function () {
             var $this = $(this);
             var data = $this.data('calendar');
@@ -1184,7 +1291,7 @@
             if(!options) options = {};
             options.el = $this;
             if (!data) $this.data('calendar', (data = new Calendar(options)));
-            if (typeof option == 'string') data[option]();
+            if (typeof option == 'string') data[option](value);
         });
     };
 
@@ -1238,6 +1345,8 @@
         'reservations': {},
         'clicked': {
             'inquiry': function(element, reservation) {
+            },
+            'available': function(element) {
             },
             'unavailable': function(element, reservation) {
             },

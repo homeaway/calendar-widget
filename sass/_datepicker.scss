@@ -124,14 +124,10 @@
 ----------------------------------*/
 .ui-state-default, 
 .ui-widget-content .ui-state-default { 
-    @include background-image(linear-gradient($defaultBackgroundLight, $defaultBackgroundLight 50%, $defaultBackgroundDark 50%, $defaultBackgroundDark)); 
-    background-color: $defaultBackgroundLight; 
-    border: 1px solid $defaultBorder; 
-    color: $defaultText; 
-    font-size: 11px; 
+    font-size: 12px; 
     font-weight: bold; 
     outline: none; 
-    padding: 2px;
+    padding: 7px 11px;
 
     a, 
     a:link, 

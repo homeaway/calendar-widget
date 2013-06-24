@@ -38,7 +38,7 @@ $('#myCalendar').calendar(options)
 
 name | type | default | description
 ------------- |:-------------:|:-------------:|:--------------
-url | String | ```''``` | The url to fetch data from. The default value is configured for SWIFT so feel free to override this to fit your url structure.
+url | String | ```''``` | The url to fetch data from.
 startOfWeek | Number | ```0``` | The day of the week for the calendar to start on. 0 is for Sunday, 1 is for Monday, etc.
 language | Object | English US. See below for default. | The language keys to use for the datepicker. To pass in keys use the following format. Note that all keys must be provided if an alternative language is being used. They must also follow the correct ordering of months, days, etc. 
 defaultDate | <a href="http://api.jqueryui.com/datepicker/#option-defaultDate" alt="jQuery UI Datepicker Widget Documentation">See Docs</a> | todays date | The date to start the date picker on.
@@ -113,6 +113,34 @@ hoverClassEnd | String | ```''``` | The class to apply to the selected end date 
 ```javascript
 function(error) {
 } 
+```
+
+# Functions
+
+name | options | description
+------------- |:-------------:|:--------------
+addReservations | Object | Used to add reservations to the calendar after instantiation. The object passed in requires the keys calendar and reservation, the same options passed into the calendar during instantiation. See the JSON Schema below for further details.
+removeReservations | String or Array | Used to remove reservations by id from the calendar after instantiation. The parameter can either be a single reservation id or an array of reservation ids.
+
+### Examples
+
+```javascript
+$('#myCalendar').calendar('addReservations', {
+    calendar: {
+        range: {
+            "startDate": '2013-01-02',
+            "endDate": '2013-01-05',
+            "reservationId": "inquiry"
+        }
+    },
+    reservations: {
+        "inquiry": {
+            "status": "INQUIRY"
+        } 
+    }
+});
+
+$('#myCalendar').calendar('removeReservations', 'INQUIRY');
 ```
 
 # Events
